@@ -8,6 +8,7 @@ RUN microdnf -y --nodocs install hostname make protobuf-devel golang git \
   golang-github-gogo-protobuf systemd-devel which npm
 RUN git clone --depth 1 --branch v${VERSION} https://github.com/grafana/agent.git /src
 RUN npm install -g yarn && make generate-ui
+RUN rm /src/go.sum && go get
 RUN RELEASE_BUILD=1 VERSION=${VERSION} \
     GO_TAGS="builtinassets promtail_journal_enabled" \
     make agent
