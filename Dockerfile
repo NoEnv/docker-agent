@@ -1,27 +1,28 @@
-FROM registry.fedoraproject.org/fedora-minimal:38 as build
+FROM registry.fedoraproject.org/fedora-minimal:39
 
-ARG VERSION=0.32.1
+ARG VERSION=0.39.0
 
-WORKDIR /src
-
-RUN microdnf -y --nodocs install hostname make protobuf-devel golang git \
-  golang-github-gogo-protobuf systemd-devel which npm
-RUN git clone --depth 1 --branch v${VERSION} https://github.com/grafana/agent.git /src
-RUN npm install -g yarn && make generate-ui
-RUN rm /src/go.sum && go get
-RUN RELEASE_BUILD=1 VERSION=${VERSION} \
-    GO_TAGS="builtinassets promtail_journal_enabled" \
-    make agent
-
-FROM registry.fedoraproject.org/fedora-minimal:38
-
-RUN microdnf -y --nodocs install systemd-libs && microdnf clean all && rm -rf /var/lib/dnf /var/cache/*
-
-ENV ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.18
-
-COPY --from=build /src/build/grafana-agent /usr/bin/grafana-agent
-COPY --from=build /src/cmd/grafana-agent/agent-local-config.yaml /etc/agent/agent.yml
+RUN microdnf -y --nodocs install shadow-utils && \
+    case "$(arch)" in \
+       aarch64|arm64|arm64e) \
+         ARCHITECTURE='arm64'; \
+         ;; \
+       x86_64|amd64|i386) \
+         ARCHITECTURE='amd64'; \
+         ;; \
+       *) \
+         echo "Unsupported architecture"; \
+         exit 1; \
+         ;; \
+    esac; \
+    curl -LfsSo /tmp/gpg.key https://rpm.grafana.com/gpg.key && \
+    rpm --import /tmp/gpg.key && \
+    curl -LfsSo /tmp/grafana-agent.rpm https://github.com/grafana/agent/releases/download/v${VERSION}/grafana-agent-${VERSION}-1.${ARCHITECTURE}.rpm && \
+    rpm -i /tmp/grafana-agent.rpm && \
+    microdnf -y remove shadow-utils && \
+    microdnf clean all && \
+    rm -rf /var/lib/dnf /var/cache/* /tmp/grafana-agent.rpm /tmp/gpg.key
 
 ENTRYPOINT ["/usr/bin/grafana-agent"]
 
-CMD ["--config.file=/etc/agent/agent.yml", "--metrics.wal-directory=/etc/agent/data"]
+CMD ["--config.file=/etc/grafana-agent.yaml"]
