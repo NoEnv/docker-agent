@@ -1,6 +1,6 @@
 FROM registry.fedoraproject.org/fedora-minimal:41
 
-ARG VERSION=0.43.3
+ARG VERSION=0.43.4
 
 RUN microdnf -y --nodocs install shadow-utils && \
     case "$(arch)" in \
